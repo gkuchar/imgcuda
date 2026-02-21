@@ -26,4 +26,4 @@ namespace imgcuda {
 
     ppm::Image sobel_x(const ppm::Image& in);
     ppm::Image sobel_y(const ppm::Image& in);
- }
+}
