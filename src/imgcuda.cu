@@ -62,16 +62,21 @@ __global__ void blur_kernel(unsigned char* data, int width, int height, int radi
     int y = threadIdx.y + blockIdx.y * blockDim.y;
 
     if (x < width && y < height) {
-        int offset = y * width + x;
-
-        unsigned char r = data[CHANNELS * offset]; // red value for pixel
-        unsigned char g = data[CHANNELS * offset + 1]; // green value for pixel
-        unsigned char b = data[CHANNELS * offset + 2]; // blue value for pixel
-
-        float gray_val = 0.21f*r + 0.71f*g + 0.07f*b;
-        data[CHANNELS * offset] = (unsigned char)gray_val;
-        data[CHANNELS * offset + 1] = (unsigned char)gray_val;
-        data[CHANNELS * offset + 2] = (unsigned char)gray_val;
+        for (int c = 0; c < 3; c++) {
+            int pix_vals = 0;
+            int pixels = 0;
+            for (int blurRow = -radius; blurRow < radius + 1; ++blurRow) {
+                for (int blurCol = -radius; blurCol < radius + 1; ++blurCol) {
+                    int curRow = y + blurRow;
+                    int curCol = x + blurCol;
+                    if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
+                        pix_vals += data[CHANNELS * (curRow * width + curCol) + c];
+                        pixels++;
+                    }
+                }
+            }
+            data[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, pix_vals / pixels));
+        }
     }
 }
 
@@ -353,7 +358,7 @@ namespace imgcuda {
     // original API wraps timing version and discards metrics
     ppm::Image blur(const ppm::Image& in, int radius) {
         imgcuda::Timing t;
-        return grayscale(in, radius, t);
+        return blur(in, radius, t);
     }
 
     ppm::Image sharpen(const ppm::Image& in, Timing& t)   { return in; } // TODO

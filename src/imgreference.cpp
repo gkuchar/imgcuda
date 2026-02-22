@@ -4,6 +4,11 @@
 
 #include "ppm.h"
 #include "imgreference.h"
+#include <algorithm>
+using std::min;
+using std::max;
+
+#define CHANNELS 3
 
 namespace imgcpu {
     ppm::Image drop_red(const ppm::Image& in) {
@@ -52,7 +57,30 @@ namespace imgcpu {
         return out;
     }
 
-    ppm::Image blur(const ppm::Image& in, int /*radius*/) { return in; } // TODO
+    ppm::Image blur(const ppm::Image& in, int radius) {
+        ppm::Image out = in;
+        for (int y = 0; y < in.height; y++) {
+            for (int x = 0; x < in.width; x++) {
+                for (int c = 0; c < 3; c++) {
+                    int pix_vals = 0;
+                    int pixels = 0;
+                    for (int blurRow = -radius; blurRow < radius + 1; blurRow++) {
+                        for (int blurCol = -radius; blurCol < radius + 1; blurCol++) {
+                            int curRow = y + blurRow;
+                            int curCol = x + blurCol;
+                            if (curRow > -1 && curRow < in.height && curCol > -1 && curCol < in.width) {
+                                pix_vals += in.data[CHANNELS * (curRow * in.width + curCol) + c];
+                                pixels++;
+                            }
+                        }
+                    }
+                    out.data[CHANNELS * (y * in.width + x) + c] = (unsigned char)min(255, max(0, pix_vals / pixels));
+                }
+            }
+        }
+        return out;
+    }
+
     ppm::Image sharpen(const ppm::Image& in)   { return in; } // TODO
     ppm::Image sobel_x(const ppm::Image& in)   { return in; } // TODO
     ppm::Image sobel_y(const ppm::Image& in)   { return in; } // TODO
