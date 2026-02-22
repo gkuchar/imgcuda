@@ -24,14 +24,14 @@ int main(int argc, char* argv[]) {
     int radius = 1;
     bool verify = false;
 
-    std::map<std::string, std::function<ppm::Image(const ppm::Image&)>> gpu_filters = {
-    {"drop_red",   imgcuda::drop_red},
-    {"drop_green", imgcuda::drop_green},
-    {"drop_blue",  imgcuda::drop_blue},
-    {"grayscale",  imgcuda::grayscale},
-    {"sharpen",    imgcuda::sharpen},
-    {"sobel_x",    imgcuda::sobel_x},
-    {"sobel_y",    imgcuda::sobel_y},
+    std::map<std::string, std::function<ppm::Image(const ppm::Image&, imgcuda::Timing&)>> gpu_filters = {
+    {"drop_red",   static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::drop_red)},
+    {"drop_green", static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::drop_green)},
+    {"drop_blue",  static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::drop_blue)},
+    {"grayscale",  static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::grayscale)},
+    {"sharpen",    static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::sharpen)},
+    {"sobel_x",    static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::sobel_x)},
+    {"sobel_y",    static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::sobel_y)},
     };
 
     std::map<std::string, std::function<ppm::Image(const ppm::Image&)>> cpu_filters = {
@@ -43,11 +43,6 @@ int main(int argc, char* argv[]) {
     {"sobel_x",    imgcpu::sobel_x},
     {"sobel_y",    imgcpu::sobel_y},
     };
-
-    cudaEvent_t start, stop;
-    float htdTotal = 0;
-    float kernExecTotal = 0;
-    float dthTotal = 0;
 
     if (argc < 3) {
         printf("Usage: %s input.ppm output.ppm --filter <name> [--radius <r>] [--runs <n>] [--verify]\n", argv[0]);
@@ -78,35 +73,32 @@ int main(int argc, char* argv[]) {
         printf("Error: --runs must be between 10 and 25\n");
         exit(1);
     }
-
+    (void)verify;
     input = argv[1];
     output = argv[2];
 
     ppm::Image in_image = ppm::read(input);
     ppm::Image out_image;
 
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    
-    if (filter == "blur") {
-        out_image = imgcuda::blur(in_image, radius);
-        filter_full = std::string("blur") + " radius=" + std::to_string(radius);
-    }
-    else {
-        out_image = gpu_filters[filter](in_image);
-        filter_full = filter;
-    }
-
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
+    imgcuda::Timing t;
+    for (int i = 0; i < runs; i++) {
+        if (filter == "blur") {
+            out_image = imgcuda::blur(in_image, radius, t);
+            filter_full = std::string("blur") + " radius=" + std::to_string(radius);
+            }
+        else {
+            out_image = gpu_filters[filter](in_image, t);
+            filter_full = filter;
+        }
+    }    
 
     ppm::write(output, out_image);
 
     printf("\nFilter: %s\n", filter_full.c_str());
     printf("Runs: %d\n", runs);
-    printf("Average H2D: %f ms\n", htdTotal / runs);
-    printf("Average Kernel: %f ms\n", kernExecTotal / runs);
-    printf("Average D2H: %f ms\n", dthTotal / runs);
+    printf("Average H2D: %f ms\n", t.htd / runs);
+    printf("Average Kernel: %f ms\n", t.kernel / runs);
+    printf("Average D2H: %f ms\n", t.dth / runs);
 
     return 0;
 }

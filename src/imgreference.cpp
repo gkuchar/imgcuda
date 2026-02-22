@@ -9,7 +9,7 @@ namespace imgcpu {
     ppm::Image drop_red(const ppm::Image& in) {
         int i;
         ppm::Image out = in;
-        for (i = 0; i < in.bytes(); i = i + 3) {
+        for (i = 0; i < (int)in.bytes(); i = i + 3) {
             out.data[i] = 0;
         }
         return out;
@@ -18,7 +18,7 @@ namespace imgcpu {
     ppm::Image drop_green(const ppm::Image& in) {
         int i;
         ppm::Image out = in;
-        for (i = 1; i < in.bytes(); i = i + 3) {
+        for (i = 1; i < (int)in.bytes(); i = i + 3) {
             out.data[i] = 0;
         }
         return out;
@@ -27,9 +27,15 @@ namespace imgcpu {
     ppm::Image drop_blue(const ppm::Image& in) {
         int i;
         ppm::Image out = in;
-        for (i = 2; i < in.bytes(); i = i + 3) {
+        for (i = 2; i < (int)in.bytes(); i = i + 3) {
             out.data[i] = 0;
         }
         return out;
     }
+
+    ppm::Image grayscale(const ppm::Image& in) { return in; } // TODO
+    ppm::Image blur(const ppm::Image& in, int /*radius*/) { return in; } // TODO
+    ppm::Image sharpen(const ppm::Image& in)   { return in; } // TODO
+    ppm::Image sobel_x(const ppm::Image& in)   { return in; } // TODO
+    ppm::Image sobel_y(const ppm::Image& in)   { return in; } // TODO
 }

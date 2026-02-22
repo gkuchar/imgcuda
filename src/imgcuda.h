@@ -16,6 +16,15 @@
 #include "ppm.h"
 
 namespace imgcuda {
+
+    // store timing metrics
+    struct Timing {
+    float htd = 0; // host to device
+    float kernel = 0; // kernel execution
+    float dth = 0; // device to host
+    };
+
+    // standard API
     ppm::Image drop_red(const ppm::Image& in);
     ppm::Image drop_green(const ppm::Image& in);
     ppm::Image drop_blue(const ppm::Image& in);
@@ -26,4 +35,16 @@ namespace imgcuda {
 
     ppm::Image sobel_x(const ppm::Image& in);
     ppm::Image sobel_y(const ppm::Image& in);
+
+    // timing API
+    ppm::Image drop_red(const ppm::Image& in, Timing& t);
+    ppm::Image drop_green(const ppm::Image& in, Timing& t);
+    ppm::Image drop_blue(const ppm::Image& in, Timing& t);
+    ppm::Image grayscale(const ppm::Image& in, Timing& t);
+
+    ppm::Image blur(const ppm::Image& in, int radius, Timing& t);
+    ppm::Image sharpen(const ppm::Image& in, Timing& t);
+
+    ppm::Image sobel_x(const ppm::Image& in, Timing& t);
+    ppm::Image sobel_y(const ppm::Image& in, Timing& t);
 }
