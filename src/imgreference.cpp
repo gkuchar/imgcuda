@@ -81,7 +81,78 @@ namespace imgcpu {
         return out;
     }
 
-    ppm::Image sharpen(const ppm::Image& in)   { return in; } // TODO
-    ppm::Image sobel_x(const ppm::Image& in)   { return in; } // TODO
-    ppm::Image sobel_y(const ppm::Image& in)   { return in; } // TODO
+    ppm::Image sharpen(const ppm::Image& in) {
+        int vals[9] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
+        ppm::Image out = in;
+        for (int y = 0; y < in.height; y++) {
+            for (int x = 0; x < in.width; x++) {
+                for (int c = 0; c < 3; c++) {
+                    int result = 0;
+                    int i = 0;
+                    for (int blurRow = -1; blurRow < 2; blurRow++) {
+                        for (int blurCol = -1; blurCol < 2; blurCol++) {
+                            int curRow = y + blurRow;
+                            int curCol = x + blurCol;
+                            if (curRow > -1 && curRow < in.height && curCol > -1 && curCol < in.width) {
+                                result += vals[i] * in.data[CHANNELS * (curRow * in.width + curCol) + c];
+                            }
+                            i++;
+                        }
+                    }
+                    out.data[CHANNELS * (y * in.width + x) + c] = (unsigned char)min(255, max(0, result));
+                }
+            }
+        }
+        return out;
+    }
+
+    ppm::Image sobel_x(const ppm::Image& in) {
+        int vals[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+        ppm::Image out = in;
+        for (int y = 0; y < in.height; y++) {
+            for (int x = 0; x < in.width; x++) {
+                for (int c = 0; c < 3; c++) {
+                    int result = 0;
+                    int i = 0;
+                    for (int blurRow = -1; blurRow < 2; blurRow++) {
+                        for (int blurCol = -1; blurCol < 2; blurCol++) {
+                            int curRow = y + blurRow;
+                            int curCol = x + blurCol;
+                            if (curRow > -1 && curRow < in.height && curCol > -1 && curCol < in.width) {
+                                result += vals[i] * in.data[CHANNELS * (curRow * in.width + curCol) + c];
+                            }
+                            i++;
+                        }
+                    }
+                    out.data[CHANNELS * (y * in.width + x) + c] = (unsigned char)min(255, max(0, result));
+                }
+            }
+        }
+        return out;
+    }
+
+    ppm::Image sobel_y(const ppm::Image& in) {
+        int vals[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+        ppm::Image out = in;
+        for (int y = 0; y < in.height; y++) {
+            for (int x = 0; x < in.width; x++) {
+                for (int c = 0; c < 3; c++) {
+                    int result = 0;
+                    int i = 0;
+                    for (int blurRow = -1; blurRow < 2; blurRow++) {
+                        for (int blurCol = -1; blurCol < 2; blurCol++) {
+                            int curRow = y + blurRow;
+                            int curCol = x + blurCol;
+                            if (curRow > -1 && curRow < in.height && curCol > -1 && curCol < in.width) {
+                                result += vals[i] * in.data[CHANNELS * (curRow * in.width + curCol) + c];
+                            }
+                            i++;
+                        }
+                    }
+                    out.data[CHANNELS * (y * in.width + x) + c] = (unsigned char)min(255, max(0, result));
+                }
+            }
+        }
+        return out;
+    }
 }

@@ -57,7 +57,7 @@ __global__ void grayscale_kernel(unsigned char* data, int width, int height) {
     }
 }
 
-__global__ void blur_kernel(unsigned char* data, int width, int height, int radius) {
+__global__ void blur_kernel(unsigned char* in, unsigned char* out, int width, int height, int radius) {
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -70,12 +70,81 @@ __global__ void blur_kernel(unsigned char* data, int width, int height, int radi
                     int curRow = y + blurRow;
                     int curCol = x + blurCol;
                     if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
-                        pix_vals += data[CHANNELS * (curRow * width + curCol) + c];
+                        pix_vals += in[CHANNELS * (curRow * width + curCol) + c];
                         pixels++;
                     }
                 }
             }
-            data[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, pix_vals / pixels));
+            out[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, pix_vals / pixels));
+        }
+    }
+}
+
+__global__ void sharpen_kernel(unsigned char* in, unsigned char* out, int width, int height) {
+    int vals[9] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x < width && y < height) {
+        for (int c = 0; c < 3; c++) {
+            int result = 0;
+            int i = 0;
+            for (int row = -1; row < 2; row++) {
+                for (int col = -1; col < 2; col++) {
+                    int curRow = y + row;
+                    int curCol = x + col;
+                    if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
+                        result += vals[i] * in[CHANNELS * (curRow * width + curCol) + c];
+                    }
+                    i++;
+                }
+            }
+            out[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, result));
+        }
+    }
+}
+
+__global__ void sobel_x_kernel(unsigned char* in, unsigned char* out, int width, int height) {
+    int vals[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x < width && y < height) {
+        for (int c = 0; c < 3; c++) {
+            int result = 0;
+            int i = 0;
+            for (int row = -1; row < 2; row++) {
+                for (int col = -1; col < 2; col++) {
+                    int curRow = y + row;
+                    int curCol = x + col;
+                    if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
+                        result += vals[i] * in[CHANNELS * (curRow * width + curCol) + c];
+                    }
+                    i++;
+                }
+            }
+            out[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, result));
+        }
+    }
+}
+
+__global__ void sobel_y_kernel(unsigned char* in, unsigned char* out, int width, int height) {
+    int vals[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x < width && y < height) {
+        for (int c = 0; c < 3; c++) {
+            int result = 0;
+            int i = 0;
+            for (int row = -1; row < 2; row++) {
+                for (int col = -1; col < 2; col++) {
+                    int curRow = y + row;
+                    int curCol = x + col;
+                    if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
+                        result += vals[i] * in[CHANNELS * (curRow * width + curCol) + c];
+                    }
+                    i++;
+                }
+            }
+            out[CHANNELS * (y * width + x) + c] = (unsigned char)min(255, max(0, result));
         }
     }
 }
@@ -312,13 +381,16 @@ namespace imgcuda {
         float ms;
 
         // 1. Allocate device memory
-        unsigned char* d_data;
-        cudaError_t err = cudaMalloc(&d_data, in.bytes());
+        unsigned char* d_in;
+        unsigned char* d_out;
+        cudaError_t err = cudaMalloc(&d_in, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaMalloc(&d_out, in.bytes());
         if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
 
         // 2. Copy input to device
         cudaEventRecord(start);
-        err = cudaMemcpy(d_data, in.data.data(), in.bytes(), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_in, in.data.data(), in.bytes(), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -329,16 +401,16 @@ namespace imgcuda {
         dim3 block(16, 16);
         dim3 grid((in.width + block.x - 1) / block.x, (in.height + block.y - 1) / block.y);
         cudaEventRecord(start);
-        blur_kernel<<<grid, block>>>(d_data, in.width, in.height, radius);
+        blur_kernel<<<grid, block>>>(d_in, d_out, in.width, in.height, radius);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         cudaEventElapsedTime(&ms, start, stop);
         t.kernel += ms;
 
         // 4. Copy result back
-        ppm::Image out = in; // copy metadata (width, height)
+        ppm::Image out = in;
         cudaEventRecord(start);
-        err = cudaMemcpy(out.data.data(), d_data, out.bytes(), cudaMemcpyDeviceToHost);
+        err = cudaMemcpy(out.data.data(), d_out, out.bytes(), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -346,7 +418,9 @@ namespace imgcuda {
         t.dth += ms;
 
         // 5. Free device memory
-        err = cudaFree(d_data);
+        err = cudaFree(d_in);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaFree(d_out);
         if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
 
         cudaEventDestroy(start);
@@ -361,7 +435,186 @@ namespace imgcuda {
         return blur(in, radius, t);
     }
 
-    ppm::Image sharpen(const ppm::Image& in, Timing& t)   { return in; } // TODO
-    ppm::Image sobel_x(const ppm::Image& in, Timing& t)   { return in; } // TODO
-    ppm::Image sobel_y(const ppm::Image& in, Timing& t)   { return in; } // TODO
+    ppm::Image sharpen(const ppm::Image& in, imgcuda::Timing& t) {
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        float ms;
+
+        // 1. Allocate device memory
+        unsigned char* d_in;
+        unsigned char* d_out;
+        cudaError_t err = cudaMalloc(&d_in, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaMalloc(&d_out, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        // 2. Copy input to device
+        cudaEventRecord(start);
+        err = cudaMemcpy(d_in, in.data.data(), in.bytes(), cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.htd += ms;
+
+        // 3. Launch kernel
+        dim3 block(16, 16);
+        dim3 grid((in.width + block.x - 1) / block.x, (in.height + block.y - 1) / block.y);
+        cudaEventRecord(start);
+        sharpen_kernel<<<grid, block>>>(d_in, d_out, in.width, in.height);
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.kernel += ms;
+
+        // 4. Copy result back
+        ppm::Image out = in;
+        cudaEventRecord(start);
+        err = cudaMemcpy(out.data.data(), d_out, out.bytes(), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.dth += ms;
+
+        // 5. Free device memory
+        err = cudaFree(d_in);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaFree(d_out);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+
+        return out;
+    }
+
+    // original API wraps timing version and discards metrics
+    ppm::Image sharpen(const ppm::Image& in) {
+        imgcuda::Timing t;
+        return sharpen(in, t);
+    }
+
+    ppm::Image sobel_x(const ppm::Image& in, imgcuda::Timing& t) {
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        float ms;
+
+        // 1. Allocate device memory
+        unsigned char* d_in;
+        unsigned char* d_out;
+        cudaError_t err = cudaMalloc(&d_in, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaMalloc(&d_out, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        // 2. Copy input to device
+        cudaEventRecord(start);
+        err = cudaMemcpy(d_in, in.data.data(), in.bytes(), cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.htd += ms;
+
+        // 3. Launch kernel
+        dim3 block(16, 16);
+        dim3 grid((in.width + block.x - 1) / block.x, (in.height + block.y - 1) / block.y);
+        cudaEventRecord(start);
+        sobel_x_kernel<<<grid, block>>>(d_in, d_out, in.width, in.height);
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.kernel += ms;
+
+        // 4. Copy result back
+        ppm::Image out = in;
+        cudaEventRecord(start);
+        err = cudaMemcpy(out.data.data(), d_out, out.bytes(), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.dth += ms;
+
+        // 5. Free device memory
+        err = cudaFree(d_in);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaFree(d_out);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+
+        return out;
+    }
+
+    // original API wraps timing version and discards metrics
+    ppm::Image sobel_x(const ppm::Image& in) {
+        imgcuda::Timing t;
+        return sobel_x(in, t);
+    }
+    
+    ppm::Image sobel_y(const ppm::Image& in, imgcuda::Timing& t) {
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        float ms;
+
+        // 1. Allocate device memory
+        unsigned char* d_in;
+        unsigned char* d_out;
+        cudaError_t err = cudaMalloc(&d_in, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaMalloc(&d_out, in.bytes());
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        // 2. Copy input to device
+        cudaEventRecord(start);
+        err = cudaMemcpy(d_in, in.data.data(), in.bytes(), cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.htd += ms;
+
+        // 3. Launch kernel
+        dim3 block(16, 16);
+        dim3 grid((in.width + block.x - 1) / block.x, (in.height + block.y - 1) / block.y);
+        cudaEventRecord(start);
+        sobel_y_kernel<<<grid, block>>>(d_in, d_out, in.width, in.height);
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.kernel += ms;
+
+        // 4. Copy result back
+        ppm::Image out = in;
+        cudaEventRecord(start);
+        err = cudaMemcpy(out.data.data(), d_out, out.bytes(), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&ms, start, stop);
+        t.dth += ms;
+
+        // 5. Free device memory
+        err = cudaFree(d_in);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+        err = cudaFree(d_out);
+        if (err != cudaSuccess) printf("CUDA error: %s\n", cudaGetErrorString(err));
+
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+
+        return out;
+    }
+
+    // original API wraps timing version and discards metrics
+    ppm::Image sobel_y(const ppm::Image& in) {
+        imgcuda::Timing t;
+        return sobel_y(in, t);
+    }
 }
