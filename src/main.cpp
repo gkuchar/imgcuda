@@ -53,10 +53,22 @@ int main(int argc, char* argv[]) {
 
     for (int i = 3; i < argc; i++) {
         std::string arg = argv[i];
-        if (arg == "--filter")       filter  = argv[++i];
-        else if (arg == "--radius")  radius  = std::stoi(argv[++i]);
-        else if (arg == "--runs")    runs    = std::stoi(argv[++i]);
-        else if (arg == "--verify")  verify  = true;
+        if (arg == "--filter") {
+            if (++i >= argc) { printf("Error: --filter requires a value\n"); exit(1); }
+            filter = argv[i];
+        }
+        else if (arg == "--radius") {
+            if (++i >= argc) { printf("Error: --radius requires a value\n"); exit(1); }
+            radius = std::stoi(argv[i]);
+        }
+        else if (arg == "--runs") {
+            if (++i >= argc) { printf("Error: --runs requires a value\n"); exit(1); }
+            runs = std::stoi(argv[i]);
+        }
+        else if (arg == "--verify") verify = true;
+        else {
+            printf("Warning: unknown argument '%s'\n", arg.c_str());
+        }
     }
 
     if (filter.empty()) {
@@ -79,7 +91,22 @@ int main(int argc, char* argv[]) {
     input = argv[1];
     output = argv[2];
 
-    ppm::Image in_image = ppm::read(input);
+    if (input.size() < 4 || input.substr(input.size() - 4) != ".ppm") {
+        printf("Error: input file must be a .ppm file\n");
+        exit(1);
+    }
+    if (output.size() < 4 || output.substr(output.size() - 4) != ".ppm") {
+        printf("Error: output file must be a .ppm file\n");
+        exit(1);
+    }
+
+    try {
+        in_image = ppm::read(input);
+    } catch (const std::exception& e) {
+        printf("Error: %s\n", e.what());
+        exit(1);
+    }
+
     ppm::Image out_image;
 
     imgcuda::Timing t;
@@ -107,7 +134,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    ppm::write(output, out_image);
+    try {
+        ppm::write(output, out_image);
+    } catch (const std::exception& e) {
+        printf("Error: %s\n", e.what());
+        exit(1);
+    }
 
     printf("\nFilter: %s\n", filter_full.c_str());
     printf("Runs: %d\n", runs);
