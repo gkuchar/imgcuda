@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
     bool verify = false;
     int mismatched_bytes = 0;
     int first_mismatched_byte = -1;
+    ppm::Image in_image;
 
     std::map<std::string, std::function<ppm::Image(const ppm::Image&, imgcuda::Timing&)>> gpu_filters = {
     {"drop_red",   static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::drop_red)},

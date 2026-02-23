@@ -11,7 +11,11 @@
 #     ppmtest.cpp     (PPM test)
 #     ppm.h ppm.cpp
 #     imgcuda.h imgcuda.cu
-#     imgreference.cpp
+#     imgreference.h imgreference.cpp
+#	tests/
+#	  IMG_1528.jpeg IMG_1528.txt
+#     griffin.ppm griffin.txt
+#     lenna.ppm lenna.txt
 #
 # Build:
 #   make
@@ -98,7 +102,7 @@ test: $(IMGTOOL)
 .PHONY: clean
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
-	
+
 .PHONY: vars
 vars:
 	@echo "CXX        = $(CXX)"
