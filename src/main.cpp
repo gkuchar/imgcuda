@@ -23,6 +23,8 @@ int main(int argc, char* argv[]) {
     std::string input, output, filter, filter_full;
     int radius = 1;
     bool verify = false;
+    int mismatched_bytes = 0;
+    int first_mismatched_byte = -1;
 
     std::map<std::string, std::function<ppm::Image(const ppm::Image&, imgcuda::Timing&)>> gpu_filters = {
     {"drop_red",   static_cast<ppm::Image(*)(const ppm::Image&, imgcuda::Timing&)>(imgcuda::drop_red)},
@@ -73,7 +75,7 @@ int main(int argc, char* argv[]) {
         printf("Error: --runs must be between 10 and 25\n");
         exit(1);
     }
-    (void)verify;
+
     input = argv[1];
     output = argv[2];
 
@@ -90,7 +92,20 @@ int main(int argc, char* argv[]) {
             out_image = gpu_filters[filter](in_image, t);
             filter_full = filter;
         }
-    }    
+    }
+    
+    if (verify) {
+        ppm::Image cpu_out_image;
+        cpu_out_image = (filter == "blur") ? imgcpu::blur(in_image, radius) : cpu_filters[filter](in_image);
+        for (int i = 0; i < (int)in_image.bytes(); i++) {
+            if (abs((int)out_image.data[i] - (int)cpu_out_image.data[i]) > 1) {
+                if (mismatched_bytes == 0) {
+                    first_mismatched_byte = i;
+                }
+                mismatched_bytes++;
+            }
+        }
+    }
 
     ppm::write(output, out_image);
 
@@ -99,6 +114,10 @@ int main(int argc, char* argv[]) {
     printf("Average H2D: %f ms\n", t.htd / runs);
     printf("Average Kernel: %f ms\n", t.kernel / runs);
     printf("Average D2H: %f ms\n", t.dth / runs);
+    if (verify) {
+        printf("!VERIFY REPORT!\nThere were %d mismatched RGB bytes between the CPU sequential processing and the GPU parallel processing.\n", mismatched_bytes);
+        if (first_mismatched_byte != -1) printf("The first RGB mismatch was at byte %d\n", first_mismatched_byte);
+    }
 
     return 0;
 }

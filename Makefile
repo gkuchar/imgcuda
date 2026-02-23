@@ -98,8 +98,7 @@ test: $(IMGTOOL)
 .PHONY: clean
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
-	rm -f imgtool_*
-
+	
 .PHONY: vars
 vars:
 	@echo "CXX        = $(CXX)"
