@@ -1,7 +1,7 @@
 # imgcuda — CUDA GPU Image Processing Library
 **Griffin Kuchar** | C++ · CUDA · Parallel Computing · Computer Vision
 
-📧 [griffin.kuchar@gmail.com](mailto:griffin.kuchar@gmail.com) · 💼 [linkedin.com/in/griffin-kuchar-95081124b](https://www.linkedin.com/in/griffin-kuchar-95081124b/)
+📧 [griffin.kuchar@gmail.com](mailto:griffin.kuchar@gmail.com) · 💼 [linkedin.com/in/griffin-kuchar](https://www.linkedin.com/in/griffin-kuchar/)
 
 A high-performance image processing library built in C++ and CUDA, demonstrating GPU parallel programming, memory management, and software engineering best practices. Implements 8 image filters that run on NVIDIA GPUs with CPU reference implementations for correctness validation.
 
